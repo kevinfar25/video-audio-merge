@@ -77,9 +77,41 @@ video-audio-merge/
 └── output/             # Merged video outputs
 ```
 
-## Docker Deployment (Coming Soon)
+## API Usage
 
-Docker configuration will be added for easy deployment to services like Coolify.
+The application provides a REST API endpoint for automation tools like n8n:
+
+**Endpoint:** `POST /api/merge`
+
+**Request:**
+```json
+{
+  "video_url": "https://example.com/video.mp4",
+  "audio_url": "https://example.com/audio.mp3"
+}
+```
+
+See [API_DOCS.md](API_DOCS.md) for complete API documentation.
+
+## Docker Deployment
+
+### Local Docker Testing
+
+```bash
+docker-compose up --build
+```
+
+### Coolify Deployment
+
+1. Push your code to GitHub
+2. In Coolify:
+   - Create new service
+   - Select "Docker Compose" or "Dockerfile"
+   - Connect your GitHub repository
+   - Set environment variable: `BASE_URL=https://your-domain.com`
+   - Deploy
+
+The service will be available at your configured domain with the `/api/merge` endpoint for n8n integration.
 
 ## Technical Details
 

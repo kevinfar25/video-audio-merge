@@ -1,20 +1,46 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, HttpUrl
 from pathlib import Path
 import shutil
 import uuid
 import os
+import requests
+import tempfile
+from urllib.parse import urlparse
 from merge import merge_video_audio, get_duration
 
-app = FastAPI()
+app = FastAPI(title="Video Audio Merge API", version="1.0.0")
 
 # Create necessary directories
 UPLOAD_DIR = Path("uploads")
 OUTPUT_DIR = Path("output")
 TEST_FILES_DIR = Path("test_files")
+TEMP_DIR = Path("temp")
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
+TEMP_DIR.mkdir(exist_ok=True)
+
+# Request model for URL-based merging
+class MergeRequest(BaseModel):
+    video_url: HttpUrl
+    audio_url: HttpUrl
+    output_format: str = "mp4"
+
+# Response model
+class MergeResponse(BaseModel):
+    success: bool
+    message: str
+    video_duration: str
+    audio_duration: str
+    output_duration: str
+    download_url: str
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for container orchestration."""
+    return {"status": "healthy", "service": "video-audio-merge"}
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -40,6 +66,81 @@ async def home():
         </body>
     </html>
     """
+
+def download_file_from_url(url: str, dest_path: Path) -> Path:
+    """Download a file from URL to destination path."""
+    try:
+        response = requests.get(str(url), stream=True, timeout=30)
+        response.raise_for_status()
+        
+        with open(dest_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        return dest_path
+    except Exception as e:
+        if dest_path.exists():
+            dest_path.unlink()
+        raise HTTPException(status_code=400, detail=f"Failed to download file from {url}: {str(e)}")
+
+@app.post("/api/merge", response_model=MergeResponse)
+async def merge_from_urls(request: MergeRequest):
+    """
+    API endpoint for n8n/automation: Merge video and audio from URLs.
+    
+    Args:
+        request: JSON body with video_url and audio_url
+    
+    Returns:
+        JSON response with download URL for merged file
+    """
+    unique_id = str(uuid.uuid4())
+    video_path = TEMP_DIR / f"{unique_id}_video.mp4"
+    audio_path = TEMP_DIR / f"{unique_id}_audio.mp3"
+    output_filename = f"merged_{unique_id}.{request.output_format}"
+    output_path = OUTPUT_DIR / output_filename
+    
+    try:
+        # Download files from URLs
+        download_file_from_url(str(request.video_url), video_path)
+        download_file_from_url(str(request.audio_url), audio_path)
+        
+        # Get durations
+        video_duration = get_duration(video_path)
+        audio_duration = get_duration(audio_path)
+        
+        # Merge files
+        merge_video_audio(video_path, audio_path, output_path)
+        
+        # Get output duration
+        output_duration = get_duration(output_path)
+        
+        # Clean up temp files
+        video_path.unlink()
+        audio_path.unlink()
+        
+        # Get base URL (you might want to set this as an environment variable)
+        base_url = os.getenv("BASE_URL", "http://localhost:8000")
+        
+        return MergeResponse(
+            success=True,
+            message="Files merged successfully",
+            video_duration=f"{video_duration:.2f} seconds" if video_duration else "Unknown",
+            audio_duration=f"{audio_duration:.2f} seconds" if audio_duration else "Unknown",
+            output_duration=f"{output_duration:.2f} seconds" if output_duration else "Unknown",
+            download_url=f"{base_url}/download/{output_filename}"
+        )
+        
+    except Exception as e:
+        # Clean up on error
+        if video_path.exists():
+            video_path.unlink()
+        if audio_path.exists():
+            audio_path.unlink()
+        if output_path.exists():
+            output_path.unlink()
+        
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/merge")
 async def merge_files(
