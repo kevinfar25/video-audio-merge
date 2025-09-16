@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Audio Merge - Cut to Audio Length</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .file-input-label {
+            display: block;
+            padding: 12px;
+            background: #f7f7f7;
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #777;
+        }
+        
+        .file-input-label:hover {
+            background: #f0f0f0;
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        .file-input-wrapper.has-file .file-input-label {
+            background: #e8f4fd;
+            border-color: #667eea;
+            color: #333;
+        }
+        
+        .submit-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .info-box {
+            background: #f0f4ff;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .info-box h3 {
+            color: #667eea;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .info-box p {
+            color: #555;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .result {
+            margin-top: 25px;
+            padding: 20px;
+            background: #e8f8e8;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .result.error {
+            background: #ffe8e8;
+        }
+        
+        .result h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .result p {
+            color: #555;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .test-file-btn {
+            display: inline-block;
+            padding: 6px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-right: 8px;
+            transition: background 0.2s ease;
+        }
+        
+        .test-file-btn:hover {
+            background: #5a67d8;
+        }
+        
+        .test-files-label {
+            color: #667eea;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Video Audio Merge</h1>
+        <p class="subtitle">Merge video with new audio - cuts to audio length</p>
+        
+        <div class="info-box">
+            <h3>How it works:</h3>
+            <p>Upload a video file and an audio file. The output video will be the audio duration plus 0.5 seconds. If your video is longer, it will be cut 0.5 seconds after the audio ends to avoid abrupt cuts.</p>
+        </div>
+        
+        <form id="mergeForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="video">Video File</label>
+                <div class="file-input-wrapper" id="videoWrapper">
+                    <input type="file" id="video" name="video" accept="video/*" required>
+                    <label for="video" class="file-input-label">
+                        Choose video file (MP4, MOV, AVI, etc.)
+                    </label>
+                </div>
+                <div id="videoTestFiles" style="margin-top: 10px;"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="audio">Audio File</label>
+                <div class="file-input-wrapper" id="audioWrapper">
+                    <input type="file" id="audio" name="audio" accept="audio/*" required>
+                    <label for="audio" class="file-input-label">
+                        Choose audio file (MP3, WAV, M4A, etc.)
+                    </label>
+                </div>
+                <div id="audioTestFiles" style="margin-top: 10px;"></div>
+            </div>
+            
+            <button type="submit" class="submit-btn">Merge Files</button>
+        </form>
+        
+        <div class="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 15px; color: #666;">Processing files...</p>
+        </div>
+        
+        <div id="result" class="result"></div>
+    </div>
+    
+    <script>
+        // Load test files on page load
+        async function loadTestFiles() {
+            try {
+                const response = await fetch('/test-files');
+                const files = await response.json();
+                
+                // Display video test files
+                const videoTestDiv = document.getElementById('videoTestFiles');
+                if (files.video_files.length > 0) {
+                    let html = '<span class="test-files-label">Test files:</span>';
+                    files.video_files.forEach(file => {
+                        html += `<button type="button" class="test-file-btn" onclick="loadTestFile('video', '${file}')">${file}</button>`;
+                    });
+                    videoTestDiv.innerHTML = html;
+                }
+                
+                // Display audio test files
+                const audioTestDiv = document.getElementById('audioTestFiles');
+                if (files.audio_files.length > 0) {
+                    let html = '<span class="test-files-label">Test files:</span>';
+                    files.audio_files.forEach(file => {
+                        html += `<button type="button" class="test-file-btn" onclick="loadTestFile('audio', '${file}')">${file}</button>`;
+                    });
+                    audioTestDiv.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Error loading test files:', error);
+            }
+        }
+        
+        // Load a test file
+        async function loadTestFile(type, filename) {
+            try {
+                const response = await fetch(`/test-file/${filename}`);
+                const blob = await response.blob();
+                const file = new File([blob], filename, { type: blob.type });
+                
+                // Create a DataTransfer object to set the file
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                
+                const input = document.getElementById(type);
+                input.files = dataTransfer.files;
+                
+                // Update UI
+                const wrapper = document.getElementById(type + 'Wrapper');
+                const label = wrapper.querySelector('.file-input-label');
+                wrapper.classList.add('has-file');
+                label.textContent = '✓ ' + filename + ' (test file)';
+            } catch (error) {
+                console.error('Error loading test file:', error);
+            }
+        }
+        
+        // Load test files when page loads
+        loadTestFiles();
+        
+        // File input handling
+        document.getElementById('video').addEventListener('change', function(e) {
+            const wrapper = document.getElementById('videoWrapper');
+            const label = wrapper.querySelector('.file-input-label');
+            if (e.target.files.length > 0) {
+                wrapper.classList.add('has-file');
+                label.textContent = '✓ ' + e.target.files[0].name;
+            }
+        });
+        
+        document.getElementById('audio').addEventListener('change', function(e) {
+            const wrapper = document.getElementById('audioWrapper');
+            const label = wrapper.querySelector('.file-input-label');
+            if (e.target.files.length > 0) {
+                wrapper.classList.add('has-file');
+                label.textContent = '✓ ' + e.target.files[0].name;
+            }
+        });
+        
+        // Form submission
+        document.getElementById('mergeForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('video', document.getElementById('video').files[0]);
+            formData.append('audio', document.getElementById('audio').files[0]);
+            
+            const submitBtn = document.querySelector('.submit-btn');
+            const loading = document.querySelector('.loading');
+            const resultDiv = document.getElementById('result');
+            
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            resultDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('/merge', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    resultDiv.className = 'result';
+                    resultDiv.innerHTML = `
+                        <h3>✅ Success!</h3>
+                        <p><strong>Original video duration:</strong> ${result.video_duration}</p>
+                        <p><strong>Audio duration:</strong> ${result.audio_duration}</p>
+                        <p><strong>Output duration:</strong> ${result.output_duration}</p>
+                        <a href="${result.download_url}" class="download-btn" download>Download Merged Video</a>
+                    `;
+                } else {
+                    throw new Error(result.detail || 'Merge failed');
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>❌ Error</h3>
+                    <p>${error.message}</p>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+                resultDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
