@@ -255,19 +255,63 @@ async def list_test_files():
     return files
 
 @app.delete("/cleanup")
-async def cleanup_old_files():
-    """Clean up old output files (optional endpoint)."""
+async def cleanup_old_files(max_age_minutes: int = 60):
+    """
+    Clean up old output files.
+    
+    Args:
+        max_age_minutes: Delete files older than this many minutes (default 60)
+    """
     import time
     current_time = time.time()
-    deleted = 0
+    max_age_seconds = max_age_minutes * 60
+    deleted_files = []
     
-    for file_path in OUTPUT_DIR.glob("*.mp4"):
-        # Delete files older than 1 hour
-        if current_time - file_path.stat().st_mtime > 3600:
-            file_path.unlink()
-            deleted += 1
+    for file_path in OUTPUT_DIR.glob("*"):
+        if file_path.is_file():
+            file_age = current_time - file_path.stat().st_mtime
+            if file_age > max_age_seconds:
+                deleted_files.append(file_path.name)
+                file_path.unlink()
     
-    return {"deleted_files": deleted}
+    return {
+        "deleted_count": len(deleted_files),
+        "deleted_files": deleted_files,
+        "max_age_minutes": max_age_minutes
+    }
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background cleanup task on server startup."""
+    import asyncio
+    from datetime import datetime
+    
+    async def auto_cleanup():
+        """Automatically clean up old files every 30 minutes."""
+        while True:
+            try:
+                # Wait 30 minutes
+                await asyncio.sleep(1800)
+                
+                # Clean up files older than 30 minutes
+                current_time = time.time()
+                deleted = 0
+                
+                for file_path in OUTPUT_DIR.glob("*"):
+                    if file_path.is_file():
+                        # Delete files older than 30 minutes
+                        if current_time - file_path.stat().st_mtime > 1800:
+                            file_path.unlink()
+                            deleted += 1
+                
+                if deleted > 0:
+                    print(f"[{datetime.now()}] Auto-cleanup: Deleted {deleted} old files")
+                    
+            except Exception as e:
+                print(f"[{datetime.now()}] Auto-cleanup error: {e}")
+    
+    # Start the cleanup task in the background
+    asyncio.create_task(auto_cleanup())
 
 if __name__ == "__main__":
     import uvicorn
